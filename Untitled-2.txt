@@ -1,0 +1,62 @@
+// Zarantyr Full Moon Wiggle Script for Roll20
+// Locks Zarantyr’s full moon on day 14, and generates random yearly wiggles for other months
+var ZFM = (function(){
+    'use strict';
+    var stateName = 'ZARANTYR_FULLMOON';
+    var defaults = {
+        wiggles: {}   // stores year → [offset0..offset11]
+    };
+
+    // Ensure state structure and wiggles for current year
+    function checkInstall(){
+        if(!state[stateName]) state[stateName] = JSON.parse(JSON.stringify(defaults));
+        var calState = state[stateName];
+        var year = getGameYear();
+        if(!calState.wiggles[year]) generateRandomWiggles(year);
+    }
+
+    // Generate random ±1-day wiggles for months 1..11; month 0 stays 0
+    function generateRandomWiggles(year){
+        var w = [];
+        for(var m = 0; m < 12; m++){
+            w[m] = (m === 0) ? 0 : (randomInteger(3) - 2); // yields -1, 0, or +1
+        }
+        state[stateName].wiggles[year] = w;
+    }
+
+    // Fetch the current game year from Calendar state
+    function getGameYear(){
+        var cal = state.CALENDAR && state.CALENDAR.calendar;
+        return cal ? cal.current.year : 0;
+    }
+
+    // Returns true if day is full moon for Zarantyr (month index 0)
+    function isZarantyrFull(day){
+        return day === 14;
+    }
+
+    // Chat command handler for testing
+    function handleInput(msg){
+        if(msg.type !== 'api') return;
+        var args = msg.content.trim().split(/\s+/);
+        if(args[0] !== '!zfull') return;
+        checkInstall();
+        var day = parseInt(args[1], 10);
+        if(!day || day < 1 || day > 28){
+            sendChat('ZFM','/w '+msg.who+' Usage: !zfull <day 1–28>');
+            return;
+        }
+        var full = isZarantyrFull(day);
+        var reply = full ?
+            'Yes — Zarantyr '+day+' is a full moon.' :
+            'No — Zarantyr '+day+' is not a full moon.';
+        sendChat('ZFM','/w '+msg.who+' '+reply);
+    }
+
+    // Register handlers
+    on('ready', function(){
+        checkInstall();
+        sendChat('ZFM','/w gm Zarantyr Full Moon script loaded. Type !zfull <day>.');
+        on('chat:message', handleInput);
+    });
+})();
