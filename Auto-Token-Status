@@ -1,0 +1,117 @@
+on("change:token", function(obj) {
+    processToken(obj);
+});
+
+on("change:attribute", function(obj) {
+    var name = obj.get("name");
+    var characterId = obj.get("characterid");
+    if ((name == "hp_temp" || name == "inspiration") && characterId) {
+        var tokens = findObjs({ _type: "graphic", represents: characterId });
+        log("auto_hp_bar observed hp_temp change for " + characterId + ". processing " + tokens.length + " tokens");
+        _.each(tokens, function(token) {
+            processToken(token);
+        });
+    }
+});
+
+function processToken(token) {
+    var gmnotes = decodeURIComponent(token.get('gmnotes'));
+    
+    var isOn = null;
+    if (gmnotes.match()) {
+        isOn = true;
+    }
+    
+    if (gmnotes.match(/auto_hp_bar=off/)) {
+        isOn = false;
+    }
+    
+    if (isOn === null) {
+        isOn = parseInt(token.get("bar3_value")) == 1 && isNaN(parseInt(token.get("bar3_max")));
+    }
+    
+    if (!isOn) {
+        return;
+    }
+    
+    log("auto_hp_bar is running for " + token.get("_id"));
+    
+    var currentHp = parseInt(token.get("bar1_value"));
+    var maxHp = parseInt(token.get("bar1_max"));
+    
+    if (isNaN(currentHp) || isNaN(maxHp)) {
+        log("auto_hp_bar skipping " + token.get("_id") + " with empty hp " + token.get("bar1_value") + " / " + token.get("bar1_max"));
+        return;
+    }
+    
+    var characterId = token.get("represents");
+    if (characterId) {
+        log(characterId);
+        var tempHp = parseInt(getAttrByName(characterId, 'hp_temp', 'current'));
+        if (!isNaN(tempHp)) {
+            log("auto_hp_bar adding temp hp " + tempHp);
+            currentHp += tempHp;
+        }
+        
+        log(token.get("name"));
+        
+        
+    var noTemp = isNaN(tempHp) || (tempHp === 0);
+    log("auto_hp_bar found temp hp and is assigning temp-hp=" + !noTemp);
+    token.set("status_temp-hp::6525316", !noTemp);
+        
+    }
+    
+    var characterId = token.get("represents");
+    if (characterId) {
+        log(characterId);
+        var inspiration = getAttrByName(characterId, "inspiration") == "on";
+        if (!isNaN(inspiration)) {
+            log("is inspired");
+    }
+        
+        log(token.get("name"));
+        
+    var noInspire = getAttrByName(characterId, "inspiration") == "0";
+        log("auto_hp_bar found inspiration and is assigning inspired");
+        token.set("status_inspiration::6525312", !noInspire); 
+    }
+    
+    var ratio = currentHp / maxHp;
+    log("auto_hp_bar using ratio " + ratio + " for " + token.get("_id"));
+    if (ratio <= 0) {
+        log("auto_hp_bar setting BLACK for " + token.get("_id"));
+        token.set("status_dying::6525317", true);
+        token.set("status_prone::6498314", true);
+        token.set("status_unconscious::6498325", true);
+        token.set("status_critical::6498312", false);
+        token.set("status_wounded::6498313", false);
+        token.set("status_healthy::6498341", false);
+    } else if (ratio <= 0.25) {
+        log("auto_hp_bar setting RED for " + token.get("_id"));
+        token.set("status_dying::6525317", false);
+        token.set("status_critical::6498312", true);
+        token.set("status_wounded::6498313", false);
+        token.set("status_healthy::6498341", false);
+    } else if (ratio <= 0.50) {
+        log("auto_hp_bar setting YELLOW for " + token.get("_id"));
+        token.set("status_dying::6525317", false);
+        token.set("status_critical::6498312", false);
+        token.set("status_wounded::6498313", true);
+        token.set("status_healthy::6498341", false);
+    } else if (ratio < 1) {
+        log("auto_hp_bar setting GREEN for " + token.get("_id"));
+        token.set("status_dying::6525317", false);
+        token.set("status_critical::6498312", false);
+        token.set("status_wounded::6498313", false);
+        token.set("status_healthy::6498341", true);
+    } else {
+        log("auto_hp_bar setting CLEAR for " + token.get("_id"));
+        token.set("status_dying::6525317", false);
+        token.set("status_critical::6498312", false);
+        token.set("status_wounded::6498313", false);
+        token.set("status_healthy::6498341", false);
+    }
+    
+    
+}
